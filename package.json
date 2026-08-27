@@ -1,9 +1,9 @@
 {
-  "name": "powerchat-demo",
+  "name": "powerchat-devapp-demo",
   "version": "1.0.0",
   "private": false,
-  "license": "MIT",
-  "description": "Official examples for the PowerChat Developer API. Zero dependencies — Node 22 built-ins only, so there is nothing to install.",
+  "license": "Apache-2.0",
+  "description": "Official examples for the PowerChat Developer API. Zero dependencies \u2014 Node 22 built-ins only, so there is nothing to install.",
   "keywords": [
     "powerchat",
     "streaming",
@@ -51,5 +51,13 @@
     "scenario:interactive-overlay": "node scenarios/interactive-overlay/run.js",
     "scenario:community-bot": "node scenarios/community-bot/bot.js",
     "scenario:community-bot:live": "node scenarios/community-bot/live-feed.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/PowerchatOfficial/powerchat-devapp-demo.git"
+  },
+  "homepage": "https://github.com/PowerchatOfficial/powerchat-devapp-demo#readme",
+  "bugs": {
+    "url": "https://github.com/PowerchatOfficial/powerchat-devapp-demo/issues"
   }
 }

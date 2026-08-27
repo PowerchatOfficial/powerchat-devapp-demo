@@ -25,8 +25,8 @@ install step, no lockfile drift, no supply chain.
 ## 60-second quickstart
 
 ```bash
-git clone <this repo>
-cd powerchat-demo
+git clone https://github.com/PowerchatOfficial/powerchat-devapp-demo.git
+cd powerchat-devapp-demo
 cp .env.example .env
 # register an app (below), paste the client id + secret into .env
 node server.js          # → control UI on http://127.0.0.1:4000, webhook receiver on :4001
@@ -374,4 +374,4 @@ The canonical, always-current API reference is served by PowerChat itself:
 
 If this repo and those docs ever disagree, the docs are right — and that is a bug here worth filing.
 
-Licensed under the [MIT License](LICENSE).
+Licensed under the [Apache License 2.0](LICENSE).
