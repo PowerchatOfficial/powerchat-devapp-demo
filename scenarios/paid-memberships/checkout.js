@@ -166,6 +166,20 @@ function newOrderRef() {
 }
 
 /**
+ * The exact shape `newOrderRef` produces: `ord_` + 32 lowercase hex chars.
+ * Anything arriving from outside — a URL path, `app_ref` on the return
+ * redirect, `appExternalRef` on a webhook — is matched against THIS before it
+ * is used as a lookup key. Never decode or normalise an inbound ref first:
+ * `decodeURIComponent('%')` throws, and an uncaught throw in a request
+ * handler is a remote way to kill the process.
+ */
+const ORDER_REF_PATTERN = /^ord_[0-9a-f]{32}$/;
+
+function isOrderRef(value) {
+  return typeof value === 'string' && ORDER_REF_PATTERN.test(value);
+}
+
+/**
  * Mint a fresh, single-use, fixed-price checkout for one join attempt.
  *
  * Passing amountCents / purpose / redirectUri makes PowerChat mint a CHECKOUT
@@ -246,7 +260,9 @@ function redactIntentUrl(rawUrl) {
 
 module.exports = {
   MEMBERSHIP,
+  ORDER_REF_PATTERN,
   createOrderStore,
+  isOrderRef,
   mintMembershipCheckout,
   newOrderRef,
   redactIntentUrl,

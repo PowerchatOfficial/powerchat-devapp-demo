@@ -324,7 +324,9 @@
             A fixed amount mints a <strong>single-use, one-hour intent</strong>: the URL carries
             only an opaque <code>app_intent</code>, so the viewer cannot edit the terms. Your
             <code>ref</code> comes back on the <code>donation.completed</code> webhook as
-            <code>appExternalRef</code>.
+            <code>appExternalRef</code> — authoritatively, because the intent was minted
+            server-side. A link assembled by hand with <code>app_ref</code> in the query string is
+            viewer-editable, so PowerChat surfaces that ref as untrusted instead.
           </p>
           <div class="out" id="out-tip-checkout-link" hidden></div>
         </section>
@@ -488,9 +490,11 @@
             : 'POWERCHAT_CLIENT_ID is not set. Copy .env.example to .env and register an app in the PowerChat dashboard first.';
 
         $('webhook-note').textContent = state.webhookSecretConfigured
-          ? 'Receiver mounted at ' +
+          ? 'Receiver listening on its own port ' +
+            state.webhookPort +
+            ' at ' +
             state.webhookPath +
-            '. Only signature-verified, de-duplicated deliveries are listed.'
+            ' — tunnel THAT port, never this one. Only signature-verified, de-duplicated deliveries are listed.'
           : 'POWERCHAT_WEBHOOK_SECRET is not set — every delivery is rejected until you copy the signing secret from the dashboard.';
 
         document.querySelectorAll('button[data-action]').forEach((b) => (b.disabled = !connected));

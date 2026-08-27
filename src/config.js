@@ -7,7 +7,10 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-function loadDotEnv(file = path.join(__dirname, '..', '.env')) {
+/** Where `.env` lives — also where `src/credentials.js` writes rotated tokens. */
+const ENV_FILE = path.join(__dirname, '..', '.env');
+
+function loadDotEnv(file = ENV_FILE) {
   if (!fs.existsSync(file)) return;
   for (const line of fs.readFileSync(file, 'utf8').split('\n')) {
     const trimmed = line.trim();
@@ -38,7 +41,16 @@ const config = {
   accessToken: process.env.POWERCHAT_ACCESS_TOKEN || '',
   refreshToken: process.env.POWERCHAT_REFRESH_TOKEN || '',
   streamer: process.env.POWERCHAT_STREAMER || '',
+  /**
+   * server.js runs TWO listeners (see the top of that file):
+   *   port         the interactive control server — UI, OAuth, /api/*.
+   *                Bound to 127.0.0.1 only; never tunnel it.
+   *   webhookPort  the signed-webhook receiver — the ONLY thing you expose
+   *                through ngrok/cloudflared. Bound to `webhookHost`.
+   */
   port: Number(process.env.PORT || 4000),
+  webhookPort: Number(process.env.WEBHOOK_PORT || 4001),
+  webhookHost: process.env.WEBHOOK_HOST || '0.0.0.0',
 };
 
 /** Fail loudly and specifically instead of sending an empty Bearer token. */
@@ -55,4 +67,4 @@ function require_(...keys) {
   return config;
 }
 
-module.exports = { config, requireConfig: require_ };
+module.exports = { config, requireConfig: require_, ENV_FILE };

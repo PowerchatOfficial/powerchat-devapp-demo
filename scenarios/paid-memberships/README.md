@@ -57,7 +57,10 @@ examples in `examples/` cannot show you.
   you.
 - **`fulfilment.js`** — one granting path (`creditOrder`) that both the webhook and the
   reconciliation sweep call, plus the sweep itself.
-- **`server.js`** — a `node:http` app that ties the four routes together.
+- **`server.js`** — a `node:http` app that ties the routes together, on **two listeners**: a
+  public one for the webhook, the return page, and the order-status poll (the one you tunnel),
+  and a loopback-only admin one for the storefront, `/join`, and the sweep — the routes that
+  mint intents and spend API budget, and that a real product keeps behind its own login.
 
 ## Run it
 
@@ -65,7 +68,8 @@ examples in `examples/` cannot show you.
 cp ../../.env.example ../../.env      # from the repo root: cp .env.example .env
 # fill in POWERCHAT_ACCESS_TOKEN, POWERCHAT_STREAMER, POWERCHAT_WEBHOOK_SECRET
 
-# webhooks only reach a public HTTPS URL, so tunnel first
+# webhooks only reach a public HTTPS URL, so tunnel first — ONLY the public port (4010).
+# The admin listener (127.0.0.1:4012) serves the storefront and the sweep and is never exposed.
 ngrok http 4010
 
 # register BOTH on your app in the dashboard:
@@ -76,6 +80,25 @@ export MEMBERSHIP_RETURN_URI=https://<tunnel>/membership/return
 node scenarios/paid-memberships/server.js
 ```
 
+What is where, and why:
+
+| Listener               | Routes                                                                       | Reachable from                             |
+| ---------------------- | ---------------------------------------------------------------------------- | ------------------------------------------ |
+| public `0.0.0.0:4010`  | `POST /webhooks/powerchat`, `GET /membership/return`, `GET /api/orders/:ref` | PowerChat and the payer's browser (tunnel) |
+| admin `127.0.0.1:4012` | `GET /`, `GET /join`, `POST /admin/reconcile`, `GET /api/log`                | your machine only                          |
+
+`/join` mints an intent and allocates an order per call and `/admin/reconcile` pages through
+`paid-messages` on the app's read budget, so neither belongs on a port the internet can reach.
+On the admin side they are additionally guarded the way a loopback service still has to be —
+requests a browser labels cross-site (`Sec-Fetch-Site`, a foreign `Origin`) are refused, `/join`
+is rate limited per caller, and the sweep is **single-flight**: a second press while one is running
+joins the running sweep instead of starting another. The order-status poll validates the raw
+reference against the `ord_<32 hex>` shape before any lookup (never `decodeURIComponent` on an
+untrusted path — `%` alone throws), and every request runs inside an error boundary that answers
+500 rather than letting an exception end the process. This server also builds its client on the
+refreshing `getAccessToken` path (`src/credentials.js`) — it runs for hours, an access token lives
+ten minutes, and the timer sweep would otherwise start failing with 401.
+
 Requested scopes must include `checkout:attribute`, `paid_messages:read` and
 `webhooks:events`. **Registered is not requested** — a scope ticked on your app does
 nothing until it appears in the `scope=` parameter of the authorize call the streamer
@@ -83,8 +106,8 @@ consented to. `GET /me` lists what you actually hold; the mint will 403 until it
 
 ## What to watch happen
 
-Open `http://localhost:4010/`, type a user id, press **Join**, and read the server log
-next to the browser.
+Open `http://127.0.0.1:4012/` (the admin listener), type a user id, press **Join**, and read
+the server log next to the browser.
 
 1. **Mint.** `minted ord_9f… for u_1001` — and note the logged URL says
    `app_intent=redacted`. That token is a single-use bearer credential for a $5 charge;
@@ -100,7 +123,9 @@ next to the browser.
 6. **Press Join, pay, and press it again with the same user** — the second grant extends
    the period rather than restarting it, and the two orders stay distinct.
 7. **Press "Run the reconciliation sweep" twice.** The first may recover something; the
-   second recovers nothing. That is the property worth having.
+   second recovers nothing. That is the property worth having. Press it twice _quickly_ and
+   the second reply says it joined the running sweep — overlapping sweeps are coalesced,
+   never run side by side.
 
 To see a recovery for real, stop the server while you pay, then start it again and press
 the sweep — with a durable order store, that payment is found in `paid-messages` and
