@@ -41,6 +41,13 @@
     "example:overlay-session": "node examples/10-overlay-session.js",
     "example:tip-checkout-link": "node examples/11-tip-checkout-link.js",
     "example:paid-messages": "node examples/12-paid-messages.js",
-    "example:live-stream-sse": "node examples/13-live-stream-sse.js"
+    "example:live-stream-sse": "node examples/13-live-stream-sse.js",
+    "scenario:streaming-site": "node scenarios/streaming-site/run.js",
+    "scenario:streaming-site:fast": "node scenarios/streaming-site/run.js --fast",
+    "scenario:paid-memberships": "node scenarios/paid-memberships/server.js",
+    "scenario:charity-campaign": "node scenarios/charity-campaign/server.js",
+    "scenario:interactive-overlay": "node scenarios/interactive-overlay/run.js",
+    "scenario:community-bot": "node scenarios/community-bot/bot.js",
+    "scenario:community-bot:live": "node scenarios/community-bot/live-feed.js"
   }
 }

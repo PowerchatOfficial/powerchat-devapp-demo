@@ -1,5 +1,11 @@
 # API coverage & the OpenVibe.Live reference integration
 
+> **Two ways to read this repo.** The numbered scripts in `examples/` are the API tour — one
+> endpoint each, the smallest correct call. The folders in `scenarios/` are the product tour —
+> complete integrations for a believable product, showing how the calls join up, what state lives
+> between them, and what happens when something fails. Start with a scenario that resembles what
+> you are building; drop into the numbered examples when you need one endpoint's exact shape.
+
 Two things live in this file:
 
 1. **The coverage matrix** — every way to talk to the PowerChat Developer API, and which example
@@ -70,6 +76,22 @@ patterns below are reproduced here because they are correct and non-obvious:
 | Points and money are different rails   | `currency-events` is for declared virtual points and never touches money; `tips` is monetary, credits goals/subathon/totals — and never leaderboards.                                                                                       |
 | `202` on chat is not "displayed"       | Acceptance means the message entered the moderation pipeline. It can still be dropped with no callback. Read `chat/history` back to confirm.                                                                                                |
 | Registered ≠ requested                 | A scope must appear in the `scope` parameter of the authorize call. Registering it on the app does nothing on its own — the classic cause of a surprise 403.                                                                                |
+
+## Scenarios — the product tour
+
+Each folder is a small but coherent integration for a real product shape, not an endpoint demo.
+
+| Scenario                         | The product                                                                                                                                         | PowerChat surfaces it joins                                  |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| `scenarios/streaming-site/`      | An independent streaming site (the OpenVibe.Live shape) mirroring its own chat, viewer counts, follows, and memberships into the creator's overlays | chat, view-count, follows, subscriptions, chat/history       |
+| `scenarios/paid-memberships/`    | A site selling a fixed-price $5/month membership through the creator's tip page without becoming a payment processor                                | tip-checkout-link (intents), webhooks, paid-messages         |
+| `scenarios/charity-campaign/`    | A fundraiser microsite with a live total, a donor wall, and milestone celebrations                                                                  | webhooks, paid-messages, alerts/rich                         |
+| `scenarios/interactive-overlay/` | A viewer-rewards layer: earn points by watching, spend them to trigger on-stream effects                                                            | currency-events, alerts/rich, alerts/custom, overlay-session |
+| `scenarios/community-bot/`       | A community bot announcing creator activity and keeping a live view                                                                                 | webhooks, SSE gateway                                        |
+
+The scenarios are where the _joins_ live — idempotency across retries, reconciliation after a missed
+webhook, lifecycle on restart, and the ordering constraints that a single endpoint call can never
+show you.
 
 ## Keeping this file honest
 

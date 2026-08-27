@@ -138,6 +138,36 @@ is a gap in the harness.
 
 ---
 
+## Scenarios — build a product, not a call
+
+The numbered examples above teach one endpoint each. The folders in `scenarios/` teach something the
+examples cannot: how the calls **join up** inside a real product — the ordering, the state kept
+between them, what happens on restart, and what happens when a webhook never arrives.
+
+Start with whichever resembles what you are building.
+
+| Scenario                                                 | The product                                                                                                                                                                                 | Run                                    |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- |
+| [`streaming-site/`](scenarios/streaming-site/)           | An independent streaming site mirroring its own chat, viewer counts, follows, and memberships into the creator's PowerChat overlays — so one overlay set works no matter where they stream. | `npm run scenario:streaming-site:fast` |
+| [`paid-memberships/`](scenarios/paid-memberships/)       | A site selling a fixed-price $5/month membership through the creator's tip page, without becoming a payment processor.                                                                      | `npm run scenario:paid-memberships`    |
+| [`charity-campaign/`](scenarios/charity-campaign/)       | A fundraiser microsite: live total, donor wall that respects anonymity, milestone celebrations on the overlay.                                                                              | `npm run scenario:charity-campaign`    |
+| [`interactive-overlay/`](scenarios/interactive-overlay/) | A viewer-rewards layer — earn points by watching, spend them to trigger on-stream effects.                                                                                                  | `npm run scenario:interactive-overlay` |
+| [`community-bot/`](scenarios/community-bot/)             | A community bot announcing creator activity, plus a live "what's happening now" feed.                                                                                                       | `npm run scenario:community-bot`       |
+
+Each folder has its own README that opens with the product and its user-visible behaviour, then
+shows the wiring. They are deliberately opinionated about the things that are easy to get wrong:
+
+- **Idempotency keys are derived, never invented.** A random id per attempt turns one retry into two
+  follows and inflates the creator's goals.
+- **Money is confirmed, never assumed.** The signed webhook is the only authority; the return
+  redirect is a UX convenience anyone can forge.
+- **Reconciliation is a first-class path.** Every money scenario can rebuild its state from
+  `paid-messages` after a missed webhook or a restart, and is safe to re-run.
+- **Failure is modelled.** Missing scopes, 429s, duplicate deliveries, and mid-flow restarts are
+  handled the way production code would handle them, not ignored.
+
+---
+
 ## Gotchas that will bite you
 
 These are not edge cases. They are the things developers actually get wrong, in the order they
@@ -268,7 +298,8 @@ environment.
 server.js            the runnable demo: OAuth connect, webhook receiver, small API proxy
 public/index.html    the browser UI — one file, inline CSS and JS, no build step
 src/                 the shared client, OAuth, webhook verification, and config
-examples/            one standalone script per API surface
+examples/            one standalone script per API surface (the API tour)
+scenarios/           complete product-shaped integrations (the product tour)
 docs/                the endpoint-to-example coverage matrix
 ```
 
