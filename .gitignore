@@ -1,0 +1,18 @@
+# Credentials — never commit these.
+.env
+.env.*
+!.env.example
+
+node_modules/
+
+# Logs
+*.log
+npm-debug.log*
+logs/
+
+# OS and editor cruft
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
