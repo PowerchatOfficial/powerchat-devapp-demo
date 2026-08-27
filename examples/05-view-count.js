@@ -11,12 +11,15 @@
  * different from `count: 0` (live, nobody watching).
  *
  * Scope required: viewcount:write
+ * Env: POWERCHAT_REFRESH_TOKEN + POWERCHAT_CLIENT_ID (and _SECRET for a
+ *      confidential app) so the heartbeat survives access-token expiry.
  *
  * Run:  node examples/05-view-count.js
  *       Ctrl-C to stop — it posts null on the way out.
  */
 const { config, requireConfig } = require('../src/config');
 const { PowerChatClient, PowerChatApiError } = require('../src/powerchat');
+const { createEnvTokenSource } = require('../src/credentials');
 
 // Comfortably inside the 90s window. Do not tune this to 89s: a single dropped
 // request would then expire the count, and view-count shares the ~60/min budget
@@ -31,10 +34,14 @@ function readViewerCountFromYourPlatform(previous) {
 
 async function main() {
   requireConfig('accessToken', 'streamer');
-  const client = new PowerChatClient({
-    baseUrl: config.baseUrl,
-    accessToken: config.accessToken,
-  });
+  // A heartbeat outlives an access token (~10 minutes). With a FIXED token
+  // every beat after expiry 401s, the 90s sweep clears the count, and the
+  // chip advertises an empty room while the stream is live. So the client is
+  // built on `getAccessToken`: it is called again after a 401, refreshes with
+  // POWERCHAT_REFRESH_TOKEN, and `src/credentials.js` writes the rotated
+  // pair back to .env before the new token is used.
+  const { getAccessToken } = createEnvTokenSource();
+  const client = new PowerChatClient({ baseUrl: config.baseUrl, getAccessToken });
   const streamer = config.streamer;
 
   let count = 1200;

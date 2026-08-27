@@ -25,7 +25,15 @@
  */
 const { config, requireConfig } = require('../../src/config');
 const { PowerChatClient, PowerChatApiError } = require('../../src/powerchat');
+const { createEnvTokenSource } = require('../../src/credentials');
 
+/**
+ * TOPICS are what you subscribe to. EVENT NAMES are what arrives. They differ:
+ * the `chat` topic delivers `chat.message` frames and the `view-count` topic
+ * delivers `view-count.updated` frames (the goal topics carry `goal.updated`
+ * / `goal.completed`). Switch on the event name in `onEvent` — switching on
+ * the topic name matches nothing and the feed silently shows "no events".
+ */
 const DEFAULT_TOPICS = ['chat', 'view-count', 'goal', 'subathon'];
 const MAX_BACKOFF_MS = 30_000;
 
@@ -135,7 +143,9 @@ function createLiveFeed(options = {}) {
       handle = null;
       scheduleReconnect(true);
     }, IDLE_TIMEOUT_MS);
-    idleTimer.unref?.();
+    // Deliberately NOT unref'd. Between a stream ending and the next connect
+    // this timer can be the only thing keeping the event loop alive; an
+    // unref'd timer lets Node exit "cleanly" instead of reconnecting.
   }
 
   function onEvent(event) {
@@ -150,7 +160,8 @@ function createLiveFeed(options = {}) {
 
     const data = event.data ?? {};
     switch (event.type) {
-      case 'view-count':
+      // `view-count` topic → { perPlatform: { twitch: 12, … }, total }.
+      case 'view-count.updated':
         state.viewers = data.total ?? data.count ?? state.viewers;
         break;
       case 'goal':
@@ -160,7 +171,8 @@ function createLiveFeed(options = {}) {
         if (goal && goal.goalId) state.goals.set(goal.goalId, goal);
         break;
       }
-      case 'chat': {
+      // `chat` topic → { messageId, platform, chatterName, message, … }.
+      case 'chat.message': {
         const who = data.chatterName ?? data.actorName ?? 'someone';
         state.chat.push(`${who}: ${data.message ?? ''}`);
         if (state.chat.length > CHAT_TAIL) state.chat.shift();
@@ -182,6 +194,14 @@ function createLiveFeed(options = {}) {
       topics,
       lastEventId,
       onEvent,
+      onClose() {
+        // The server closed the stream without an error (deploy, idle
+        // policy). The read loop simply ends — nothing else will reconnect,
+        // so do it here, from the last id.
+        if (stopped) return;
+        console.warn('[live-feed] stream closed by the server — reconnecting');
+        scheduleReconnect(true);
+      },
       onError(err) {
         if (stopped) return;
         if (err instanceof PowerChatApiError && err.status === 403) {
@@ -228,7 +248,9 @@ function createLiveFeed(options = {}) {
         scheduleReconnect();
       });
     }, delay);
-    reconnectTimer.unref?.();
+    // NOT unref'd, on purpose. Once the stream has failed this timer is the
+    // only handle left on the event loop; unref it and Node exits before it
+    // fires, and "reconnect with Last-Event-ID" never happens.
   }
 
   async function start() {
@@ -260,15 +282,13 @@ function createLiveFeed(options = {}) {
 
 async function main() {
   requireConfig('accessToken', 'streamer');
-  const client = new PowerChatClient({
-    baseUrl: config.baseUrl,
-    // Prefer `getAccessToken` over a fixed token in a long-running consumer:
-    // a token that expires mid-stream makes every reconnect fail with the same
-    // dead credential, forever. `src/powerchat.js` calls it again on a 401 so
-    // a refresh happens transparently. This demo uses the fixed form for
-    // brevity; see server.js for the refreshing version.
-    accessToken: config.accessToken,
-  });
+  // A long-running consumer MUST use the refreshing `getAccessToken` path:
+  // an access token lives ~10 minutes, and a fixed one makes every reconnect
+  // after that fail with the same dead credential, forever. The client calls
+  // `getAccessToken(true)` after a 401 so the refresh is transparent, and
+  // `src/credentials.js` writes the rotated pair back to .env.
+  const { getAccessToken } = createEnvTokenSource();
+  const client = new PowerChatClient({ baseUrl: config.baseUrl, getAccessToken });
 
   const topics = (process.argv[2] || DEFAULT_TOPICS.join(',')).split(',').map((t) => t.trim());
   const feed = createLiveFeed({ client, streamer: config.streamer, topics });

@@ -25,10 +25,12 @@
     "examples",
     "public",
     "server.js",
-    "docs"
+    "docs",
+    "test"
   ],
   "scripts": {
     "start": "node server.js",
+    "test": "node --test",
     "example:whoami": "node examples/01-whoami.js",
     "example:profile": "node examples/02-profile.js",
     "example:send-chat": "node examples/03-send-chat.js",

@@ -18,6 +18,13 @@
  * own tests too — an integration whose correctness depends on wall-clock time
  * is an integration you cannot test.
  *
+ * But the virtual clock has to START somewhere real when the calls are real:
+ * every currency event carries `occurredAt`, and the API refuses anything
+ * older than 24 hours (or more than a few minutes in the future). A clock
+ * pinned to a fixed date is perfect for a deterministic --dry-run and a
+ * guaranteed 400 against the live API — so a real run starts six simulated
+ * minutes before now and advances up to the present.
+ *
  * Scopes required: currency:write, alerts:rich, overlay:write
  *                  (+ alerts:trigger if you set SHOUT=1)
  *
@@ -30,6 +37,7 @@
  */
 const { config, requireConfig } = require('../../src/config');
 const { PowerChatClient, PowerChatApiError } = require('../../src/powerchat');
+const { createEnvTokenSource } = require('../../src/credentials');
 const { createEconomy } = require('./economy');
 const { createRedemptions } = require('./redemptions');
 const { createOverlayState } = require('./overlay-state');
@@ -86,12 +94,21 @@ async function main() {
     client = createDryRunClient();
   } else {
     requireConfig('accessToken', 'streamer');
-    client = new PowerChatClient({ baseUrl: config.baseUrl, accessToken: config.accessToken });
+    // Rotating credentials, even for a short run: a token pasted into .env
+    // ten minutes ago is already dead, and the client refreshes on the 401.
+    const { getAccessToken } = createEnvTokenSource();
+    client = new PowerChatClient({ baseUrl: config.baseUrl, getAccessToken });
   }
   const streamer = config.streamer || 'dry-run-streamer';
 
   // The virtual clock. Everything below reads the time through `now`.
-  let clock = Date.UTC(2026, 0, 1, 20, 0, 0);
+  //   --dry-run  a fixed instant, so the printed output is identical every run
+  //   real       six simulated minutes ago, so every `occurredAt` the loop
+  //              sends lands inside the API's 24-hour window and never in
+  //              the future (the loop advances exactly SIMULATED_MS).
+  const SIMULATED_MS = 24 * 15_000;
+  const startedAt = DRY_RUN ? Date.UTC(2026, 0, 1, 20, 0, 0) : Date.now() - SIMULATED_MS;
+  let clock = startedAt;
   const now = () => clock;
 
   const economy = createEconomy({
@@ -129,7 +146,7 @@ async function main() {
     clock += 15_000;
     // LurkerLen closes the tab at minute 3 — proof that accrual is driven by
     // observed presence and not by a per-viewer timer that keeps running.
-    const present = clock < Date.UTC(2026, 0, 1, 20, 3, 0) ? VIEWERS : VIEWERS.slice(0, 2);
+    const present = clock < startedAt + 3 * 60_000 ? VIEWERS : VIEWERS.slice(0, 2);
     if (present.length !== VIEWERS.length) economy.forget('u_1003');
     economy.observe(present, clock);
   }

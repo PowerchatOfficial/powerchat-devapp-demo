@@ -27,6 +27,7 @@
  */
 const { config, requireConfig } = require('../../src/config');
 const { PowerChatClient, PowerChatApiError } = require('../../src/powerchat');
+const { createEnvTokenSource } = require('../../src/credentials');
 const { createSite, currentTerm } = require('./site');
 const { createBridge, SCOPES_USED, HEARTBEAT_MS } = require('./bridge');
 
@@ -121,10 +122,11 @@ function printSummary(site, bridge, verification) {
 
 async function main() {
   requireConfig('accessToken', 'streamer');
-  const client = new PowerChatClient({
-    baseUrl: config.baseUrl,
-    accessToken: config.accessToken,
-  });
+  // The broadcast runs a minute; a real one runs hours, past the ~10-minute
+  // access-token lifetime. Build on the refreshing path from the start so the
+  // view-count heartbeat never lapses on an expired token.
+  const { getAccessToken } = createEnvTokenSource();
+  const client = new PowerChatClient({ baseUrl: config.baseUrl, getAccessToken });
   const streamer = config.streamer;
 
   // --------------------------------------------------- ask what we actually have

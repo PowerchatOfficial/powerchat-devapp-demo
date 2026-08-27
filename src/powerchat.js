@@ -247,21 +247,28 @@ class PowerChatClient {
   }
 
   /**
-   * Build a tip-page link for a viewer.
+   * Mint a tip-page link for a viewer — ALWAYS through this call when you
+   * need to know who paid.
    *
-   * With NO terms you get the canonical, stable shape you could also build by
-   * hand: `?app_client_id=…&app_ref=…`.
+   * Every call mints a CHECKOUT INTENT server-side — with or without terms —
+   * and the returned URL carries an opaque `app_intent` token. `ref` is your
+   * own correlation id (≤128 chars — a user id, an order id). Because the ref
+   * was pinned server-side at mint time, it comes back AUTHORITATIVELY as
+   * `appExternalRef` on the `donation.completed` webhook and on
+   * `paidMessages()` — scoped so only your app ever sees your refs, and it
+   * survives an anonymous tip.
    *
-   * With ANY term (`amountCents`, `purpose`, `redirectUri`) PowerChat mints a
-   * single-use, one-hour CHECKOUT INTENT server-side and the URL carries only
-   * an opaque `app_intent` token. The viewer cannot edit the terms: the tip
-   * page renders the amount read-only and the submit is refused unless it
-   * matches. Mint a fresh link per viewer journey.
+   * DO NOT hand-build `…/tip?app_client_id=…&app_ref=…` when you need
+   * correlation. That link travels through the viewer's browser, so the
+   * viewer (or anyone they share it with) can swap `app_ref` for someone
+   * else's order id and your webhook handler would credit the wrong account.
+   * PowerChat therefore treats a hand-built ref as UNTRUSTED input: it is NOT
+   * surfaced as `appExternalRef`. Only a server-minted intent is.
    *
-   * `ref` is your own correlation id (≤128 chars — e.g. your user id). It
-   * comes back on the `donation.completed` webhook as `appExternalRef`, on the
-   * return redirect as `app_ref`, and on `paidMessages()` — scoped so only
-   * your app ever sees your refs, and it survives an anonymous tip.
+   * With `amountCents` / `purpose` / `redirectUri` the intent also pins those
+   * terms: the tip page renders the amount read-only and refuses a submit that
+   * does not match. Intents are single-use and expire after one hour — mint a
+   * fresh link per viewer journey, never cache one for two people.
    */
   tipCheckoutLink(username, { ref, redirectUri, amountCents, purpose } = {}) {
     return this._request('GET', `/streamers/${encodeURIComponent(username)}/tip-checkout-link`, {
@@ -281,8 +288,17 @@ class PowerChatClient {
    * Needs `stream:read`; the `chat` topic additionally needs `chat:read`.
    * Use this for high-frequency live data and webhooks for must-not-miss
    * events. Returns `{ close() }`; `onEvent({ type, data, id })` per event.
+   *
+   * TOPIC NAMES ARE NOT EVENT NAMES. You subscribe with topics (`chat`,
+   * `view-count`, `goal`, …) but each frame's `type` is the event name the
+   * server emits on that topic: the `chat` topic delivers `chat.message`, the
+   * `view-count` topic delivers `view-count.updated`. Switch on the event
+   * name, not the topic you asked for.
+   *
+   * `onClose()` fires when the server ends the stream cleanly (no error).
+   * A long-lived consumer should reconnect from there too, with the last id.
    */
-  async openStream(username, { topics = ['chat'], onEvent, onError, lastEventId } = {}) {
+  async openStream(username, { topics = ['chat'], onEvent, onError, onClose, lastEventId } = {}) {
     const url = new URL(
       this.baseUrl + `/api/dev/v1/streamers/${encodeURIComponent(username)}/stream`,
     );
@@ -332,6 +348,9 @@ class PowerChatClient {
             onEvent?.({ type, data, id });
           }
         }
+        // The read loop ended without throwing: the server closed the stream
+        // (deploy, idle policy). Not an error — but not "done" either.
+        if (!controller.signal.aborted) onClose?.();
       } catch (err) {
         if (err.name !== 'AbortError') onError?.(err);
       }

@@ -18,6 +18,7 @@ const http = require('node:http');
 
 const { config } = require('../../src/config');
 const { PowerChatClient } = require('../../src/powerchat');
+const { createEnvTokenSource } = require('../../src/credentials');
 const { verifyWebhook, createDeliveryDeduper, dispatchEvent } = require('../../src/webhooks');
 const {
   announceMilestones,
@@ -42,9 +43,13 @@ const campaign = createCampaign({
   milestonesCents: [50_000, 100_000, 250_000, 500_000],
 });
 
+// Long-running server, ~10-minute access tokens: the backfill retry and the
+// milestone alerts need the refreshing `getAccessToken` path, not a fixed
+// token that dies before the first milestone.
+const tokenSource = config.accessToken ? createEnvTokenSource() : null;
 const client = new PowerChatClient({
   baseUrl: config.baseUrl,
-  accessToken: config.accessToken,
+  ...(tokenSource ? { getAccessToken: tokenSource.getAccessToken } : {}),
 });
 const deduper = createDeliveryDeduper();
 

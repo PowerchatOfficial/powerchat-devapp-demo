@@ -29,11 +29,15 @@ git clone <this repo>
 cd powerchat-demo
 cp .env.example .env
 # register an app (below), paste the client id + secret into .env
-node server.js          # → http://localhost:4000
+node server.js          # → control UI on http://127.0.0.1:4000, webhook receiver on :4001
 ```
 
-Open <http://localhost:4000>, click **Connect PowerChat**, consent on the PowerChat screen, and the
+Open <http://127.0.0.1:4000>, click **Connect PowerChat**, consent on the PowerChat screen, and the
 page comes back with your streamer name and granted scopes. Every button on it now works.
+
+`server.js` runs **two listeners**: the control server (UI, OAuth, `/api/*`) binds to `127.0.0.1`
+only, and the webhook receiver (one signed route, nothing else) binds to `0.0.0.0:4001`. Only the
+webhook port is ever tunneled — see [Webhooks](#webhooks) for why.
 
 Registering the app is the only step that is not in this repo:
 
@@ -41,7 +45,9 @@ Registering the app is the only step that is not in this repo:
    registration requires it — an authenticator app or a passkey; recovery questions do not count.
 2. User menu → **Developer API** → create an app.
 3. Set a redirect URI of exactly `http://localhost:4000/oauth/callback`. Redirect URIs are
-   **exact-match** — scheme, host, port, path, and query. No wildcards, no prefix matching.
+   **exact-match** — scheme, host, port, path, and query. No wildcards, no prefix matching. The
+   callback lands on the loopback control server, so the registered URI is a `localhost` one —
+   never the tunnel hostname.
 4. Tick the scopes you want. This demo requests all of them so every button works; a real app should
    request the narrowest set it needs.
 5. Copy the **client id** (`pca_…`) into `POWERCHAT_CLIENT_ID` and the **client secret** (`pcs_…`)
@@ -106,32 +112,44 @@ scope. Design for any subset being off.
 Every script is standalone, prints what it is doing, and needs only `POWERCHAT_ACCESS_TOKEN` and
 `POWERCHAT_STREAMER` in `.env`. Run one, read it, adapt it.
 
-| #   | Command                                 | What it shows                                                           |
-| --- | --------------------------------------- | ----------------------------------------------------------------------- |
-| 01  | `node examples/01-whoami.js`            | `GET /me` — the identity bootstrap, and the fastest way to debug a 403  |
-| 02  | `node examples/02-profile.js`           | Public profile and live status                                          |
-| 03  | `node examples/03-send-chat.js`         | Send chat, then read it back to see whether moderation kept it          |
-| 04  | `node examples/04-chat-history.js`      | Recent unified chat across every connected platform                     |
-| 05  | `node examples/05-view-count.js`        | Report viewers on a heartbeat, and clear the count when the stream ends |
-| 06  | `node examples/06-follows.js`           | Report a new follower with an idempotency key                           |
-| 07  | `node examples/07-subscriptions.js`     | Subs, gift subs, resubs, and declared tiers                             |
-| 08  | `node examples/08-currency-and-tips.js` | The points rail vs the money rail, and why they are different           |
-| 09  | `node examples/09-alerts.js`            | Test, custom, and rich alerts — display-only, never credited            |
-| 10  | `node examples/10-overlay-session.js`   | Store a JSON blob your own overlay reads back                           |
-| 11  | `node examples/11-tip-checkout-link.js` | Simple links vs single-use intents, and correlating a tip to your user  |
-| 12  | `node examples/12-paid-messages.js`     | Cursor-paginated donation history                                       |
-| 13  | `node examples/13-live-stream-sse.js`   | The SSE gateway with `Last-Event-ID` replay on reconnect                |
+The ones that run longer than an access token lives (~10 minutes) — `05-view-count.js`,
+`13-live-stream-sse.js`, and every scenario server — also want `POWERCHAT_REFRESH_TOKEN` and
+`POWERCHAT_CLIENT_ID` (+ `_SECRET` for a confidential app). They build the client on the refreshing
+`getAccessToken` path from `src/credentials.js`: a 401 triggers one refresh, and the rotated pair is
+written back to `.env` before the new token is used. A fixed token in a long-running process just
+stops working ten minutes in.
+
+| #   | Command                                 | What it shows                                                          |
+| --- | --------------------------------------- | ---------------------------------------------------------------------- |
+| 01  | `node examples/01-whoami.js`            | `GET /me` — the identity bootstrap, and the fastest way to debug a 403 |
+| 02  | `node examples/02-profile.js`           | Public profile and live status                                         |
+| 03  | `node examples/03-send-chat.js`         | Send chat, then read it back to see whether moderation kept it         |
+| 04  | `node examples/04-chat-history.js`      | Recent unified chat across every connected platform                    |
+| 05  | `node examples/05-view-count.js`        | Report viewers on a heartbeat that outlives the access token           |
+| 06  | `node examples/06-follows.js`           | Report a new follower with an idempotency key                          |
+| 07  | `node examples/07-subscriptions.js`     | Subs, gift subs, resubs, and declared tiers                            |
+| 08  | `node examples/08-currency-and-tips.js` | The points rail vs the money rail, and why they are different          |
+| 09  | `node examples/09-alerts.js`            | Test, custom, and rich alerts — display-only, never credited           |
+| 10  | `node examples/10-overlay-session.js`   | Store a JSON blob your own overlay reads back                          |
+| 11  | `node examples/11-tip-checkout-link.js` | Server-minted checkout intents, and correlating a tip to your user     |
+| 12  | `node examples/12-paid-messages.js`     | Cursor-paginated donation history                                      |
+| 13  | `node examples/13-live-stream-sse.js`   | The SSE gateway: event names, `Last-Event-ID` replay, real reconnects  |
 
 Each also has an npm script (`npm run example:whoami`, `npm run example:send-chat`, …) if you prefer.
 
 The shared code they all use lives in `src/`:
 
-| File               | Contents                                                                                                                    |
-| ------------------ | --------------------------------------------------------------------------------------------------------------------------- |
-| `src/powerchat.js` | The whole REST + SSE surface as one client, with a `PowerChatApiError` that tells you whether to refresh, retry, or give up |
-| `src/oauth.js`     | Authorization-code flow with PKCE (S256), refresh, revoke, discovery                                                        |
-| `src/webhooks.js`  | Signature verification, at-least-once dedupe, event dispatch                                                                |
-| `src/config.js`    | `.env` loading with a readable failure when something is missing                                                            |
+| File                 | Contents                                                                                                                    |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `src/powerchat.js`   | The whole REST + SSE surface as one client, with a `PowerChatApiError` that tells you whether to refresh, retry, or give up |
+| `src/oauth.js`       | Authorization-code flow with PKCE (S256), refresh, revoke, discovery                                                        |
+| `src/webhooks.js`    | Signature verification (millisecond timestamps), at-least-once dedupe, event dispatch                                       |
+| `src/credentials.js` | Rotating `getAccessToken` for long-running scripts — single-flight refresh, rotated pair persisted to `.env`                |
+| `src/config.js`      | `.env` loading with a readable failure when something is missing                                                            |
+
+`npm test` (`node --test`) pins the two things that are easiest to get subtly wrong: a webhook signed
+exactly the way PowerChat signs verifies (and stale / tampered / wrong-secret ones do not), and a
+burst of 401s produces exactly one refresh-token rotation.
 
 `docs/API-COVERAGE.md` maps every endpoint to the example that exercises it. A row without an example
 is a gap in the harness.
@@ -190,17 +208,20 @@ with no per-message status and no webhook. To confirm display, read `GET /chat/h
 message absent about two seconds after a 202 was moderated away. Watching the overlay is not a
 check: it renders live messages only, often with a short on-screen TTL.
 
-**Tip checkout: any term mints an intent.** With no terms you get the canonical, stable link shape
-(`?app_client_id=…&app_ref=…`) you can build client-side with no round trip. Pass **any** of
-`amount_cents`, `purpose`, or `redirect_uri` and PowerChat mints a **single-use, one-hour checkout
-intent** server-side; the URL then carries only an opaque `app_intent` token. The terms are
-server-held and tamper-proof — the tip page renders the amount read-only and refuses a submit that
-does not match. One intent funds exactly one tip, so mint a fresh link per viewer journey.
+**Tip checkout: always mint the link server-side.** Every `GET /tip-checkout-link` call mints a
+**single-use, one-hour checkout intent** and returns a URL carrying only an opaque `app_intent`
+token — with terms (`amount_cents`, `purpose`, `redirect_uri`) or without. Terms are server-held and
+tamper-proof: the tip page renders the amount read-only and refuses a submit that does not match.
+One intent funds exactly one tip, so mint a fresh link per viewer journey. Do **not** hand-build
+`…/tip?app_client_id=…&app_ref=…` when you need to know who paid: that URL travels through the
+viewer's browser, so anyone can swap `app_ref` for someone else's order id. PowerChat treats a
+hand-built ref as untrusted input and does **not** surface it as `appExternalRef`.
 
-**`ref` is your correlation id.** Up to 128 characters, yours to choose (your user id, an order id).
-It comes back as `appExternalRef` on the `donation.completed` webhook, as `app_ref` on the return
-redirect, and on `paid-messages`. It is scoped per app — only you ever see your own refs — and it
-survives an anonymous tip, which is often the only way to know who tipped.
+**`ref` is your correlation id — and only a minted one is authoritative.** Up to 128 characters,
+yours to choose (your user id, an order id). Pass it to `tipCheckoutLink()` and it comes back as
+`appExternalRef` on the `donation.completed` webhook and on `paid-messages` (and as `app_ref` on the
+return redirect, which is a hint, never proof). It is scoped per app — only you ever see your own
+refs — and it survives an anonymous tip, which is often the only way to know who tipped.
 
 **The webhook is the only authoritative confirmation.** Never credit anything from the return
 redirect: anyone can type that URL. Even on the webhook, check `amountCents` and `data.isTest` before
@@ -244,12 +265,23 @@ Webhooks are how you find out that something actually happened. Configure one re
 dashboard (optionally with an event-type allowlist) and you get a signing secret (`pcw_…`, shown
 once) for `POWERCHAT_WEBHOOK_SECRET`.
 
-PowerChat only delivers to a public HTTPS URL, so local development needs a tunnel:
+PowerChat only delivers to a public HTTPS URL, so local development needs a tunnel — but tunnel
+**only the webhook port**:
 
 ```bash
-node server.js            # terminal 1
-ngrok http 4000           # terminal 2 — any tunnel works: cloudflared, localtunnel, tailscale funnel
+node server.js            # terminal 1 — control UI on 127.0.0.1:4000, webhook receiver on :4001
+ngrok http 4001           # terminal 2 — any tunnel works: cloudflared, localtunnel, tailscale funnel
 ```
+
+Why the split matters: the control server holds the streamer's grant, and every button on the page
+is a token-backed mutation — send chat as this streamer, fire alerts, mint checkout links. Exposing
+that listener puts those actions one HTTP request away from the internet. So `server.js` binds it to
+loopback, requires a per-browser session cookie (HttpOnly, SameSite=Strict) on every `/api/*` call and
+on `/connect`, binds the OAuth `state` and PKCE verifier to that session, and refuses any mutation
+whose `Origin` is not its own or whose body is not `application/json`. The webhook receiver, on its
+own port, serves one route and trusts nothing but the signature — that is the only thing a tunnel
+should ever see. The same split applies to the scenario servers (`paid-memberships` runs its
+storefront and sweep on a loopback admin port, separate from the tunneled webhook/return port).
 
 Register `https://<your-tunnel>/webhooks/powerchat` as the receiver, paste the signing secret into
 `.env`, restart the server, and press **Send test webhook** in the dashboard. It fires one fully
@@ -261,8 +293,8 @@ What the receiver in `server.js` does, and what yours must do:
 
 | Rule                                | Why                                                                                                                                                                                                                                           |
 | ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Verify over the **raw bytes**       | The signature is an HMAC-SHA256 of `"<timestamp>.<raw body>"`. Re-serializing parsed JSON changes the bytes and no signature will ever match.                                                                                                 |
-| Reject stale timestamps             | Anything outside a 15-minute window is a replay.                                                                                                                                                                                              |
+| Verify over the **raw bytes**       | The signature is an HMAC-SHA256 of `"<timestamp>.<raw body>"`, where `<timestamp>` is the exact text of the `X-PowerChat-Timestamp` header. Re-serializing parsed JSON changes the bytes and no signature will ever match.                    |
+| Reject stale timestamps             | `X-PowerChat-Timestamp` is unix time in **milliseconds** (`String(Date.now())` on the sender). Compare in milliseconds; anything outside a 15-minute window is a replay. Comparing `Date.now() / 1000` to it rejects every genuine delivery.  |
 | Compare timing-safely               | `crypto.timingSafeEqual`, after a length check.                                                                                                                                                                                               |
 | Dedupe on `X-PowerChat-Delivery-Id` | Delivery is **at-least-once** and the id is stable across retries of the same delivery. This demo dedupes in memory; use a unique index in your database.                                                                                     |
 | Answer 2xx fast, work afterwards    | Transient failures retry up to 8 times on a capped exponential backoff (5s doubling toward a 1h ceiling, roughly a 24h tail). A `4xx` is terminal. About 20 consecutive failures trips a circuit breaker, and a `410` disables your endpoint. |
@@ -295,11 +327,12 @@ environment.
 ## Repository layout
 
 ```
-server.js            the runnable demo: OAuth connect, webhook receiver, small API proxy
+server.js            the runnable demo: loopback control server (OAuth, UI, API) + public webhook receiver
 public/index.html    the browser UI — one file, inline CSS and JS, no build step
-src/                 the shared client, OAuth, webhook verification, and config
+src/                 the shared client, OAuth, credentials, webhook verification, and config
 examples/            one standalone script per API surface (the API tour)
 scenarios/           complete product-shaped integrations (the product tour)
+test/                `node --test` — webhook round trip, refresh single-flight
 docs/                the endpoint-to-example coverage matrix
 ```
 

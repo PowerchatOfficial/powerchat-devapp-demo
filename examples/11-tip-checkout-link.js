@@ -12,7 +12,9 @@
  * out. That id is `ref`.
  *
  * THE CORRELATION LOOP, end to end:
- *   1. Your app mints a link with ref = your own user/order id (≤128 chars).
+ *   1. Your app MINTS a link via this endpoint with ref = your own user/order
+ *      id (≤128 chars). PowerChat records the ref server-side in a checkout
+ *      intent and hands back a URL carrying only an opaque `app_intent`.
  *   2. The viewer tips on PowerChat's tip page. You are not involved.
  *   3. Your `donation.completed` WEBHOOK arrives with appExternalRef = your ref.
  *      → THIS is where you credit the user. Nowhere else.
@@ -20,6 +22,17 @@
  *      → This is a UX convenience. Anyone can type that URL. Never credit it.
  *   5. GET /paid-messages also echoes appExternalRef, so you can reconcile or
  *      backfill anything a webhook outage lost (example 12).
+ *
+ * WHY YOU MUST MINT, AND NEVER HAND-BUILD THE LINK. It is tempting to skip the
+ * API call and render `…/tip?app_client_id=…&app_ref=<userId>` yourself —
+ * a thousand "Tip me" buttons, no round trips. Do not, if you need to know who
+ * paid. That URL goes through the viewer's browser, and `app_ref` in a query
+ * string is one keystroke away from being someone ELSE's order id: a viewer
+ * pays $5 with a swapped ref and your webhook handler credits the wrong
+ * account. PowerChat therefore treats a hand-built ref as UNTRUSTED input —
+ * it is not surfaced as `appExternalRef`. Only a ref pinned inside a
+ * server-minted intent is, because the viewer never sees or edits it. Every
+ * call to this endpoint mints an intent, terms or no terms.
  *
  * Refs are scoped per app: only YOUR app sees your refs, and they survive an
  * anonymous tip — the viewer stays anonymous to the streamer while you still
@@ -52,20 +65,20 @@ async function main() {
   // outsiders: it travels through a viewer's browser.
   const ref = 'user_8f3c21';
 
-  // ── Shape A: a simple link, no terms ────────────────────────────────────
-  // The viewer picks their own amount. The URL carries your public client id
-  // and your ref, and nothing else. This shape is CANONICAL and stable: you
-  // are welcome to build it yourself with no API call at all, which matters
-  // when you are rendering a thousand "Tip me" buttons on a page.
-  console.log('\n[A] simple link — viewer chooses the amount');
+  // ── Shape A: a minted link, no terms ────────────────────────────────────
+  // The viewer picks their own amount. Even with nothing pinned, PowerChat
+  // mints a single-use, one-hour intent and the URL carries only an opaque
+  // `app_intent` — your ref is held server-side, invisible and uneditable,
+  // which is exactly what makes it come back as `appExternalRef` on the
+  // webhook. Mint per viewer journey; an intent funds one tip.
+  console.log('\n[A] minted link, viewer chooses the amount');
   const simple = await client.tipCheckoutLink(streamer, { ref });
-  console.log('  ' + simple.url);
-  console.log('  built by hand, identically:');
-  console.log(
-    `  ${config.baseUrl}/${streamer}/tip` +
-      `?app_client_id=${config.clientId || '<your client id>'}&app_ref=${encodeURIComponent(ref)}`,
-  );
-  console.log('  no expiry, reusable, nothing is pinned. Good for a profile button.');
+  console.log('  ' + redactIntent(simple.url));
+  console.log('  expiresAt:', simple.expiresAt ?? '(see response)', '(one hour, single use)');
+  console.log('  NOT the same as building ?app_client_id=&app_ref= by hand: a hand-built');
+  console.log('  ref is viewer-editable, so PowerChat surfaces it as untrusted, never as');
+  console.log('  appExternalRef. For a static "Tip me" button with no correlation, a plain');
+  console.log(`  ${config.baseUrl}/${streamer}/tip link is fine — just do not expect a ref back.`);
 
   // ── Shape B: a fixed-price intent ───────────────────────────────────────
   // The moment you pass ANY term — amountCents, purpose, or redirectUri —
@@ -76,7 +89,7 @@ async function main() {
   //
   // This is how you price something through tips — a membership, an unlock, a
   // named goal contribution — without trusting the browser with the price.
-  console.log('\n[B] fixed-price intent — $5.00, terms held server-side');
+  console.log('\n[B] fixed-price intent — $5.00, terms held server-side too');
   const intent = await client.tipCheckoutLink(streamer, {
     amountCents: 500, // 50–1,000,000 (i.e. $0.50–$10,000)
     purpose: 'sub_premium', // your own vocabulary; echoed back as appPurpose
@@ -99,8 +112,9 @@ async function main() {
 
   console.log('\n[webhook] the ONLY authoritative confirmation:');
   console.log('  donation.completed → { appExternalRef, appPurpose, amountCents, isTest, … }');
+  console.log('  appExternalRef is set only for refs minted through this endpoint.');
   console.log('  Verify the signature, check isTest, check amountCents matches what you');
-  console.log('  charged, dedupe on the delivery id, THEN credit the user. See example 05.');
+  console.log('  charged, dedupe on the delivery id, THEN credit the user. See src/webhooks.js.');
   console.log('  A tip WITH a message also fires paid_message.created carrying the same');
   console.log('  data — credit on donation.completed only, or you will double-count.');
 }
