@@ -1,0 +1,542 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>PowerChat Developer API demo</title>
+    <!--
+      One file, no build step, no CDN. Everything below talks to the local
+      demo server (server.js) — the browser never sees a token or a secret.
+    -->
+    <style>
+      :root {
+        --bg: #0b0d12;
+        --panel: #12151d;
+        --panel-2: #171b25;
+        --line: #232838;
+        --text: #e7e9f0;
+        --muted: #8d96ad;
+        --accent: #7aa2ff;
+        --good: #4ade80;
+        --warn: #fbbf24;
+        --bad: #f87171;
+        --mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font:
+          15px/1.6 system-ui,
+          -apple-system,
+          'Segoe UI',
+          sans-serif;
+      }
+      .wrap {
+        max-width: 1080px;
+        margin: 0 auto;
+        padding: 40px 24px 80px;
+      }
+      header {
+        border-bottom: 1px solid var(--line);
+        padding-bottom: 24px;
+        margin-bottom: 28px;
+      }
+      h1 {
+        font-size: 22px;
+        margin: 0 0 6px;
+        letter-spacing: -0.01em;
+      }
+      h2 {
+        font-size: 13px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--muted);
+        margin: 0 0 14px;
+        font-weight: 600;
+      }
+      p.lede {
+        margin: 0;
+        color: var(--muted);
+        max-width: 68ch;
+      }
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 20px;
+      }
+      .row {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 20px;
+      }
+      button {
+        background: var(--accent);
+        color: #08101f;
+        border: 0;
+        border-radius: 8px;
+        padding: 9px 16px;
+        font: 600 14px/1 inherit;
+        cursor: pointer;
+      }
+      button:hover {
+        filter: brightness(1.1);
+      }
+      button:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+        filter: none;
+      }
+      button.ghost {
+        background: transparent;
+        color: var(--text);
+        border: 1px solid var(--line);
+      }
+      input {
+        background: var(--panel-2);
+        border: 1px solid var(--line);
+        color: var(--text);
+        border-radius: 8px;
+        padding: 9px 12px;
+        font: 14px/1.2 inherit;
+        width: 100%;
+      }
+      input:focus {
+        outline: 2px solid var(--accent);
+        outline-offset: -1px;
+      }
+      label {
+        display: block;
+        font-size: 12px;
+        color: var(--muted);
+        margin: 0 0 5px;
+      }
+      .field {
+        margin-bottom: 12px;
+      }
+      .chip {
+        display: inline-block;
+        font: 500 12px/1 var(--mono);
+        padding: 5px 9px;
+        border-radius: 999px;
+        background: var(--panel-2);
+        border: 1px solid var(--line);
+        color: var(--muted);
+      }
+      .chip.on {
+        color: var(--good);
+        border-color: #1f4d33;
+      }
+      .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        display: inline-block;
+        margin-right: 8px;
+        background: var(--bad);
+      }
+      .dot.on {
+        background: var(--good);
+      }
+      .out {
+        font: 12px/1.55 var(--mono);
+        white-space: pre-wrap;
+        word-break: break-word;
+        background: #0a0c11;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 11px 13px;
+        margin-top: 12px;
+        color: var(--muted);
+        max-height: 190px;
+        overflow: auto;
+      }
+      .out.ok {
+        color: var(--good);
+      }
+      .out.err {
+        color: var(--bad);
+      }
+      .out a {
+        color: var(--accent);
+      }
+      .note {
+        font-size: 12.5px;
+        color: var(--muted);
+        margin: 10px 0 0;
+      }
+      .note strong {
+        color: var(--warn);
+        font-weight: 600;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+      }
+      th {
+        text-align: left;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--muted);
+        padding: 0 10px 8px 0;
+        font-weight: 600;
+      }
+      td {
+        padding: 9px 10px 9px 0;
+        border-top: 1px solid var(--line);
+        vertical-align: top;
+      }
+      td.type {
+        font: 500 12px/1.5 var(--mono);
+        color: var(--accent);
+        white-space: nowrap;
+      }
+      td.when {
+        color: var(--muted);
+        font: 12px/1.5 var(--mono);
+        white-space: nowrap;
+      }
+      td.detail {
+        font: 12px/1.5 var(--mono);
+        color: var(--muted);
+        word-break: break-word;
+      }
+      .empty {
+        color: var(--muted);
+        font-size: 13px;
+        padding: 14px 0;
+      }
+      code {
+        font: 12.5px var(--mono);
+        background: var(--panel-2);
+        padding: 2px 5px;
+        border-radius: 4px;
+      }
+      a {
+        color: var(--accent);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header>
+        <h1>PowerChat Developer API demo</h1>
+        <p class="lede">
+          Connect a streamer, send data into their overlay, mint an attributed tip link, and watch
+          signed webhooks arrive. Everything here is the local server calling the real API — read
+          <code>server.js</code> alongside it.
+        </p>
+      </header>
+
+      <section class="panel">
+        <h2>Connection</h2>
+        <div class="row" id="connection-row">
+          <span
+            ><span class="dot" id="status-dot"></span><span id="status-text">Checking…</span></span
+          >
+          <span style="flex: 1"></span>
+          <button id="connect-btn">Connect PowerChat</button>
+        </div>
+        <div id="scopes" class="row" style="margin-top: 14px"></div>
+        <p class="note" id="connection-note"></p>
+      </section>
+
+      <div class="grid">
+        <section class="panel">
+          <h2>Send a chat message</h2>
+          <div class="field">
+            <label for="chat-name">Chatter name</label>
+            <input id="chat-name" value="DemoBot" maxlength="48" />
+          </div>
+          <div class="field">
+            <label for="chat-message">Message (1–500)</label>
+            <input id="chat-message" value="Hello from the PowerChat demo" maxlength="500" />
+          </div>
+          <button data-action="chat">Send chat</button>
+          <p class="note">
+            <strong>202 means accepted, not displayed.</strong> The message still runs the
+            streamer's moderation pipeline. This button reads <code>chat/history</code> back after
+            ~1.5s to tell you whether it actually survived.
+          </p>
+          <div class="out" id="out-chat" hidden></div>
+        </section>
+
+        <section class="panel">
+          <h2>Report a view count</h2>
+          <div class="field">
+            <label for="view-count">Viewers (blank = stream ended)</label>
+            <input id="view-count" value="1234" inputmode="numeric" />
+          </div>
+          <div class="row">
+            <button data-action="view-count">Set view count</button>
+            <button class="ghost" id="view-clear">Clear (stream ended)</button>
+          </div>
+          <p class="note">
+            <strong>Re-post at least every 90s while live.</strong> A freshness sweep clears stale
+            counts and your chip drops to 0 until the next report.
+          </p>
+          <div class="out" id="out-view-count" hidden></div>
+        </section>
+
+        <section class="panel">
+          <h2>Fire a test alert</h2>
+          <div class="field">
+            <label for="alert-name">Tipper name</label>
+            <input id="alert-name" value="DemoDonor" maxlength="80" />
+          </div>
+          <div class="field">
+            <label for="alert-amount">Amount (cents)</label>
+            <input id="alert-amount" value="500" inputmode="numeric" />
+          </div>
+          <button data-action="alert">Fire test alert</button>
+          <p class="note">
+            Display-only. App-fired alerts <strong>never</strong> credit goals, subathon time,
+            leaderboards, or tip totals — they are for proving your overlay wiring.
+          </p>
+          <div class="out" id="out-alert" hidden></div>
+        </section>
+
+        <section class="panel">
+          <h2>Mint a tip checkout link</h2>
+          <div class="field">
+            <label for="tip-amount">Fixed amount (cents)</label>
+            <input id="tip-amount" value="500" inputmode="numeric" />
+          </div>
+          <div class="field">
+            <label for="tip-ref">Your correlation ref (≤128 chars)</label>
+            <input id="tip-ref" value="demo-user-42" maxlength="128" />
+          </div>
+          <button data-action="tip-checkout-link">Mint link</button>
+          <p class="note">
+            A fixed amount mints a <strong>single-use, one-hour intent</strong>: the URL carries
+            only an opaque <code>app_intent</code>, so the viewer cannot edit the terms. Your
+            <code>ref</code> comes back on the <code>donation.completed</code> webhook as
+            <code>appExternalRef</code>.
+          </p>
+          <div class="out" id="out-tip-checkout-link" hidden></div>
+        </section>
+      </div>
+
+      <section class="panel">
+        <h2>Webhook events</h2>
+        <p class="note" style="margin: -4px 0 14px" id="webhook-note"></p>
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 190px">Type</th>
+              <th style="width: 100px">Received</th>
+              <th>Payload</th>
+            </tr>
+          </thead>
+          <tbody id="events"></tbody>
+        </table>
+        <p class="empty" id="events-empty">
+          Nothing yet. Verified deliveries appear here within a couple of seconds — try the
+          dashboard's "Send test webhook" button.
+        </p>
+      </section>
+    </div>
+
+    <script>
+      'use strict';
+
+      const $ = (id) => document.getElementById(id);
+      const num = (value) => {
+        const parsed = Number(String(value).trim());
+        return Number.isFinite(parsed) ? Math.max(0, Math.trunc(parsed)) : 0;
+      };
+
+      function show(action, text, kind) {
+        const box = $('out-' + action);
+        if (!box) return;
+        box.hidden = false;
+        box.className = 'out' + (kind ? ' ' + kind : '');
+        box.textContent = text;
+        return box;
+      }
+
+      /** Body per action. Kept next to the buttons so the mapping stays obvious. */
+      function payloadFor(action) {
+        if (action === 'chat') {
+          return { chatterName: $('chat-name').value, message: $('chat-message').value };
+        }
+        if (action === 'view-count') {
+          const raw = $('view-count').value.trim();
+          return { count: raw === '' ? null : num(raw) };
+        }
+        if (action === 'alert') {
+          return { tipperName: $('alert-name').value, amountCents: num($('alert-amount').value) };
+        }
+        if (action === 'tip-checkout-link') {
+          return { amountCents: num($('tip-amount').value), ref: $('tip-ref').value.trim() };
+        }
+        return {};
+      }
+
+      async function run(action, button) {
+        const previous = button ? button.textContent : '';
+        if (button) {
+          button.disabled = true;
+          button.textContent = 'Working…';
+        }
+        show(action, 'Calling the API…');
+        try {
+          const res = await fetch('/api/demo/' + action, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payloadFor(action)),
+          });
+          const body = await res.json();
+          if (!res.ok) {
+            const err = body.error || {};
+            show(
+              action,
+              [err.status ? 'HTTP ' + err.status : '', err.code, err.message, err.hint]
+                .filter(Boolean)
+                .join('\n'),
+              'err',
+            );
+            return;
+          }
+          render(action, body);
+        } catch (err) {
+          show(action, 'Request failed: ' + err.message, 'err');
+        } finally {
+          if (button) {
+            button.disabled = false;
+            button.textContent = previous;
+          }
+          refreshState();
+        }
+      }
+
+      function render(action, body) {
+        if (action === 'chat') {
+          const verdict =
+            body.displayed === true
+              ? 'and it IS in chat history — displayed.'
+              : 'but it is NOT in chat history yet — moderation may have dropped it, or chat:read was not granted.';
+          show(
+            action,
+            'Accepted for moderation (202) ' + verdict + '\n\nmessageId: ' + body.messageId,
+            body.displayed === true ? 'ok' : null,
+          );
+          return;
+        }
+        if (action === 'tip-checkout-link') {
+          const box = show(action, '', 'ok');
+          const link = document.createElement('a');
+          link.href = body.url;
+          link.textContent = body.url;
+          link.target = '_blank';
+          link.rel = 'noopener noreferrer';
+          box.append('ref: ' + body.ref + '\n');
+          if (body.expiresAt) box.append('single-use intent, expires ' + body.expiresAt + '\n\n');
+          box.append(link);
+          return;
+        }
+        show(action, JSON.stringify(body, null, 2), 'ok');
+      }
+
+      // ------------------------------------------------------------ state
+
+      let lastEventCount = -1;
+
+      async function refreshState() {
+        let state;
+        try {
+          state = await (await fetch('/api/state')).json();
+        } catch {
+          return; // server restarting; the next poll picks it up
+        }
+
+        const connected = state.connected && state.streamer;
+        $('status-dot').className = 'dot' + (connected ? ' on' : '');
+        $('status-text').textContent = connected
+          ? 'Connected as ' + state.streamer
+          : 'Not connected';
+        $('connect-btn').textContent = connected ? 'Reconnect / widen scopes' : 'Connect PowerChat';
+
+        $('scopes').replaceChildren(
+          ...(state.scopes || []).map((scope) => {
+            const chip = document.createElement('span');
+            chip.className = 'chip on';
+            chip.textContent = scope;
+            return chip;
+          }),
+        );
+
+        $('connection-note').textContent = connected
+          ? 'Host ' +
+            state.baseUrl +
+            '. Granted scopes are the truth — a scope registered on the app but missing here was never requested in the authorize call.'
+          : state.clientIdConfigured
+            ? 'Click Connect to run the PKCE authorization-code flow against ' + state.baseUrl + '.'
+            : 'POWERCHAT_CLIENT_ID is not set. Copy .env.example to .env and register an app in the PowerChat dashboard first.';
+
+        $('webhook-note').textContent = state.webhookSecretConfigured
+          ? 'Receiver mounted at ' +
+            state.webhookPath +
+            '. Only signature-verified, de-duplicated deliveries are listed.'
+          : 'POWERCHAT_WEBHOOK_SECRET is not set — every delivery is rejected until you copy the signing secret from the dashboard.';
+
+        document.querySelectorAll('button[data-action]').forEach((b) => (b.disabled = !connected));
+
+        if (state.events.length !== lastEventCount) {
+          lastEventCount = state.events.length;
+          renderEvents(state.events);
+        }
+      }
+
+      function renderEvents(events) {
+        $('events-empty').hidden = events.length > 0;
+        $('events').replaceChildren(
+          ...events.map((event) => {
+            const tr = document.createElement('tr');
+            const type = document.createElement('td');
+            type.className = 'type';
+            type.textContent = event.type + (event.isTest ? '  (test)' : '');
+            const when = document.createElement('td');
+            when.className = 'when';
+            when.textContent = new Date(event.receivedAt).toLocaleTimeString();
+            const detail = document.createElement('td');
+            detail.className = 'detail';
+            detail.textContent = JSON.stringify(event.data);
+            tr.append(type, when, detail);
+            return tr;
+          }),
+        );
+      }
+
+      $('connect-btn').addEventListener('click', () => (window.location.href = '/connect'));
+      $('view-clear').addEventListener('click', (e) => {
+        $('view-count').value = '';
+        run('view-count', e.currentTarget);
+      });
+      document.querySelectorAll('button[data-action]').forEach((button) => {
+        button.addEventListener('click', () => run(button.dataset.action, button));
+      });
+
+      // Strip ?connected=1 so a refresh does not look like a fresh callback.
+      if (new URLSearchParams(location.search).has('connected')) {
+        history.replaceState(null, '', location.pathname);
+      }
+
+      refreshState();
+      setInterval(refreshState, 2000);
+    </script>
+  </body>
+</html>

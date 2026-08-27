@@ -1,0 +1,46 @@
+{
+  "name": "powerchat-demo",
+  "version": "1.0.0",
+  "private": false,
+  "license": "MIT",
+  "description": "Official examples for the PowerChat Developer API. Zero dependencies — Node 22 built-ins only, so there is nothing to install.",
+  "keywords": [
+    "powerchat",
+    "streaming",
+    "overlays",
+    "alerts",
+    "donations",
+    "oauth2",
+    "pkce",
+    "webhooks",
+    "sse"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "main": "server.js",
+  "type": "commonjs",
+  "files": [
+    "src",
+    "examples",
+    "public",
+    "server.js",
+    "docs"
+  ],
+  "scripts": {
+    "start": "node server.js",
+    "example:whoami": "node examples/01-whoami.js",
+    "example:profile": "node examples/02-profile.js",
+    "example:send-chat": "node examples/03-send-chat.js",
+    "example:chat-history": "node examples/04-chat-history.js",
+    "example:view-count": "node examples/05-view-count.js",
+    "example:follows": "node examples/06-follows.js",
+    "example:subscriptions": "node examples/07-subscriptions.js",
+    "example:currency-and-tips": "node examples/08-currency-and-tips.js",
+    "example:alerts": "node examples/09-alerts.js",
+    "example:overlay-session": "node examples/10-overlay-session.js",
+    "example:tip-checkout-link": "node examples/11-tip-checkout-link.js",
+    "example:paid-messages": "node examples/12-paid-messages.js",
+    "example:live-stream-sse": "node examples/13-live-stream-sse.js"
+  }
+}
