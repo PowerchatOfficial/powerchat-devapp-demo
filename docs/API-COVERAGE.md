@@ -17,7 +17,7 @@ Two things live in this file:
 
 ## Coverage matrix
 
-Legend — **Demo**: the example script here. **OpenVibe**: whether the production reference
+Legend — **Demo**: the example script, scenario, or shared client method here. **OpenVibe**: whether the production reference
 integration exercises that path (measured by inspecting `server/integrations/powerchat-*.js`).
 
 | Direction   | Endpoint                                                       | Scope                 | Demo                                                    | OpenVibe |
@@ -43,6 +43,57 @@ integration exercises that path (measured by inspecting `server/integrations/pow
 | Integration | `POST /streamers/:u/overlay-session`                           | `overlay:write`       | `10-overlay-session.js`                                 | **no**   |
 | Integration | `GET /streamers/:u/tip-checkout-link` (always mints an intent) | `checkout:attribute`  | `11-tip-checkout-link.js`                               | **no**   |
 | Integration | `GET /streamers/:u/stream` (SSE)                               | `stream:read`         | `13-live-stream-sse.js`                                 | **no**   |
+| Bot | `POST /bot/messages` | `bot:write` | `14-bot-commands.js` | — |
+| Bot | `POST /bot/run` | `bot:write` | `14-bot-commands.js, queue-bot/bot.js` | — |
+| Bot | `GET /bot/commands` | `bot:commands` | `src/powerchat.js` | — |
+| Bot | `PUT /bot/commands/:name` | `bot:commands` | `14-bot-commands.js, src/powerchat.js` | — |
+| Bot | `DELETE /bot/commands/:name` | `bot:commands` | `src/powerchat.js` | — |
+| Widgets | `GET /variables` | `overlay:write` | `15-widgets-and-variables.js, src/powerchat.js` | — |
+| Widgets | `PUT /variables/:key` | `overlay:write` | `15-widgets-and-variables.js, src/powerchat.js` | — |
+| Widgets | `DELETE /variables/:key` | `overlay:write` | `src/powerchat.js` | — |
+| Widgets | `POST /widget-events` | `overlay:write` | `15-widgets-and-variables.js` | — |
+| Data | `GET /stats` | `data:read` | `16-viewer-data.js` | — |
+| Data | `PUT /stats/:key` | `data:write` | `16-viewer-data.js, src/powerchat.js` | — |
+| Data | `DELETE /stats/:key` | `data:write` | `src/powerchat.js` | — |
+| Data | `GET /stats/:key/leaderboard` | `data:read` | `16-viewer-data.js` | — |
+| Data | `GET /items` | `data:read` | `16-viewer-data.js` | — |
+| Data | `PUT /items/:key` | `data:write` | `16-viewer-data.js, src/powerchat.js` | — |
+| Data | `DELETE /items/:key` | `data:write` | `src/powerchat.js` | — |
+| Data | `GET /items/:key/holders` | `data:read` | `src/powerchat.js` | — |
+| Data | `GET /viewers/:platform/:viewerId` | `data:read` | `16-viewer-data.js` | — |
+| Data | `POST /transactions` | `data:write` | `16-viewer-data.js` | — |
+| Data | `GET /lists` | `data:read` | `queue-bot/bot.js` | — |
+| Data | `PUT /lists/:key` | `data:write` | `queue-bot/bot.js, src/powerchat.js` | — |
+| Data | `DELETE /lists/:key` | `data:write` | `src/powerchat.js` | — |
+| Data | `GET /lists/:key/entries` | `data:read` | `16-viewer-data.js, queue-bot/bot.js` | — |
+| Data | `POST /lists/:key/entries` | `data:write` | `16-viewer-data.js, queue-bot/bot.js` | — |
+| Data | `DELETE /lists/:key/entries/:id` | `data:write` | `src/powerchat.js` | — |
+| Data | `POST /lists/:key/next` | `data:write` | `16-viewer-data.js` | — |
+| Data | `POST /lists/:key/draw` | `data:write` | `src/powerchat.js` | — |
+| Data | `GET /rewards` | `data:read` | `src/powerchat.js` | — |
+| Data | `PUT /rewards/:key` | `data:write` | `src/powerchat.js` | — |
+| Data | `DELETE /rewards/:key` | `data:write` | `src/powerchat.js` | — |
+| Data | `POST /rewards/:key/redeem` | `data:write` | `src/powerchat.js` | — |
+| Data | `GET /redemptions` | `data:read` | `src/powerchat.js` | — |
+| Data | `POST /redemptions/:id` | `data:write` | `src/powerchat.js` | — |
+| Data | `GET /documents/:scope/:collection` | `data:write` | `src/powerchat.js` | — |
+| Data | `GET /documents/channel/:collection/:key` | `data:write` | `src/powerchat.js` | — |
+| Data | `PUT /documents/channel/:collection/:key` | `data:write` | `src/powerchat.js` | — |
+| Data | `PATCH /documents/channel/:collection/:key` | `data:write` | `src/powerchat.js` | — |
+| Data | `DELETE /documents/channel/:collection/:key` | `data:write` | `src/powerchat.js` | — |
+| Data | `GET /documents/viewer/:platform/:viewerId/:collection/:key` | `data:write` | `16-viewer-data.js, src/powerchat.js` | — |
+| Data | `PUT /documents/viewer/:platform/:viewerId/:collection/:key` | `data:write` | `16-viewer-data.js, src/powerchat.js` | — |
+| Data | `PATCH /documents/viewer/:platform/:viewerId/:collection/:key` | `data:write` | `16-viewer-data.js, src/powerchat.js` | — |
+| Data | `DELETE /documents/viewer/:platform/:viewerId/:collection/:key` | `data:write` | `src/powerchat.js` | — |
+| Data | `GET /app/documents/:collection` | `data:write` | `src/powerchat.js` | — |
+| Data | `GET /app/documents/:collection/:key` | `data:write` | `src/powerchat.js` | — |
+| Data | `PUT /app/documents/:collection/:key` | `data:write` | `src/powerchat.js` | — |
+| Data | `PATCH /app/documents/:collection/:key` | `data:write` | `src/powerchat.js` | — |
+| Data | `DELETE /app/documents/:collection/:key` | `data:write` | `src/powerchat.js` | — |
+| Data | `GET /ledger` | `data:read` | `16-viewer-data.js` | — |
+| Bot | `GET /streamers/:u/stream?topics=bot` (SSE) | `stream:read`, `bot:commands` | `14-bot-commands.js` | — |
+| Data | `GET /streamers/:u/stream?topics=data` (SSE) | `stream:read`, `data:read` | `src/powerchat.js` | — |
+| Widgets | `GET /streamers/:u/stream?topics=widgets` (SSE) | `stream:read` | `src/powerchat.js` | — |
 | Integration | Signed webhooks (inbound, ms timestamps)                       | `webhooks:events`     | `server.js`, `src/webhooks.js`, `test/webhooks.test.js` | yes      |
 
 Six surfaces have **no** production exercise anywhere before this repo: `/me`, `chat/history`,
@@ -94,6 +145,8 @@ Each folder is a small but coherent integration for a real product shape, not an
 | `scenarios/charity-campaign/`    | A fundraiser microsite with a live total, a donor wall, and milestone celebrations                                                                  | webhooks, paid-messages, alerts/rich                         |
 | `scenarios/interactive-overlay/` | A viewer-rewards layer: earn points by watching, spend them to trigger on-stream effects                                                            | currency-events, alerts/rich, alerts/custom, overlay-session |
 | `scenarios/community-bot/`       | A community bot announcing creator activity and keeping a live view (dispatching on `chat.message` / `view-count.updated`)                          | webhooks, SSE gateway                                        |
+| `scenarios/serverless-rpg/`       | One-time declarations for an RPG answered by PowerChat                                                                                               | stats, items, bot commands                                  |
+| `scenarios/queue-bot/`            | A custom chat site forwards lines to the bot and reads a join queue                                                                                  | bot/run, lists                                               |
 
 The scenarios are where the _joins_ live — idempotency across retries, reconciliation after a missed
 webhook, lifecycle on restart, and the ordering constraints that a single endpoint call can never

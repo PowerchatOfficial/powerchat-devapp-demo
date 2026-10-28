@@ -100,6 +100,10 @@ issued.
 | `checkout:attribute`  | Tag tip-page checkouts so donation webhooks echo your reference                |
 | `stream:read`         | The live SSE gateway                                                           |
 | `webhooks:events`     | Signed event deliveries to your registered receiver                            |
+| `bot:write`           | Post bot messages and run chat lines through commands                           |
+| `bot:commands`        | Manage this app's commands and receive its `bot` SSE topic                    |
+| `data:read`           | Read stats, items, viewers, lists, rewards, and ledger                          |
+| `data:write`          | Declare and change viewer data and documents                                    |
 
 Streamers can switch **individual capabilities off** without revoking the whole grant — keeping your
 view count while muting your chat, for example. A disabled capability behaves exactly like a missing
@@ -134,6 +138,9 @@ stops working ten minutes in.
 | 11  | `node examples/11-tip-checkout-link.js` | Server-minted checkout intents, and correlating a tip to your user     |
 | 12  | `node examples/12-paid-messages.js`     | Cursor-paginated donation history                                      |
 | 13  | `node examples/13-live-stream-sse.js`   | The SSE gateway: event names, `Last-Event-ID` replay, real reconnects  |
+| 14  | `node examples/14-bot-commands.js`     | Template and app-answered commands, bot replies, and `/bot/run`       |
+| 15  | `node examples/15-widgets-and-variables.js` | Channel variables and custom widget events                     |
+| 16  | `node examples/16-viewer-data.js`      | Stats, items, transactions, lists, viewer reads, and documents       |
 
 Each also has an npm script (`npm run example:whoami`, `npm run example:send-chat`, …) if you prefer.
 
@@ -171,6 +178,8 @@ Start with whichever resembles what you are building.
 | [`charity-campaign/`](scenarios/charity-campaign/)       | A fundraiser microsite: live total, donor wall that respects anonymity, milestone celebrations on the overlay.                                                                              | `npm run scenario:charity-campaign`    |
 | [`interactive-overlay/`](scenarios/interactive-overlay/) | A viewer-rewards layer — earn points by watching, spend them to trigger on-stream effects.                                                                                                  | `npm run scenario:interactive-overlay` |
 | [`community-bot/`](scenarios/community-bot/)             | A community bot announcing creator activity, plus a live "what's happening now" feed.                                                                                                       | `npm run scenario:community-bot`       |
+| [`serverless-rpg/`](scenarios/serverless-rpg/)             | A one-time setup for gold, XP, items, crafting, loot and template commands.                                                                                              | `node scenarios/serverless-rpg/setup.js` |
+| [`queue-bot/`](scenarios/queue-bot/)                       | A custom chat site uses `/bot/run` and a PowerChat join queue.                                                                                                           | `node scenarios/queue-bot/bot.js` |
 
 Each folder has its own README that opens with the product and its user-visible behaviour, then
 shows the wiring. They are deliberately opinionated about the things that are easy to get wrong:

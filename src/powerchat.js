@@ -68,7 +68,7 @@ class PowerChatClient {
    * One request. Retries ONCE on 401 with a forced token refresh, because an
    * access token expiring mid-session is routine, not an error worth surfacing.
    */
-  async _request(method, path, { query, body, retryOn401 = true } = {}) {
+  async _request(method, path, { query, body, headers, retryOn401 = true } = {}) {
     const url = new URL(this.baseUrl + '/api/dev/v1' + path);
     for (const [k, v] of Object.entries(query ?? {})) {
       if (v !== undefined && v !== null) url.searchParams.set(k, String(v));
@@ -84,6 +84,7 @@ class PowerChatClient {
           Authorization: `Bearer ${token}`,
           Accept: 'application/json',
           ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+          ...headers,
         },
         ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
         signal: controller.signal,
@@ -94,7 +95,7 @@ class PowerChatClient {
 
     if (res.status === 401 && retryOn401 && this._getAccessToken) {
       await this._token(true); // force a refresh, then replay once
-      return this._request(method, path, { query, body, retryOn401: false });
+      return this._request(method, path, { query, body, headers, retryOn401: false });
     }
 
     const text = await res.text();
@@ -279,6 +280,185 @@ class PowerChatClient {
         purpose,
       },
     });
+  }
+
+  // -------------------------------------------- BOT, WIDGETS, VIEWER DATA
+
+  _streamer(username, path) {
+    return `/streamers/${encodeURIComponent(username)}/${path}`;
+  }
+
+  /** Post through the streamer's bot; replyTo targets one chat message. */
+  botMessage(username, message) {
+    return this._request('POST', this._streamer(username, 'bot/messages'), { body: message });
+  }
+
+  /** Run one line from your platform and get the bot's reply without posting it. */
+  botRun(username, line) {
+    return this._request('POST', this._streamer(username, 'bot/run'), { body: line });
+  }
+
+  /** List commands owned by this app. */
+  botCommands(username) {
+    return this._request('GET', this._streamer(username, 'bot/commands'));
+  }
+
+  /** Register a template command, or omit response for an app-answered command. */
+  putBotCommand(username, name, command) {
+    return this._request('PUT', this._streamer(username, `bot/commands/${encodeURIComponent(name)}`), { body: command });
+  }
+
+  /** Remove one command owned by this app. */
+  deleteBotCommand(username, name) {
+    return this._request('DELETE', this._streamer(username, `bot/commands/${encodeURIComponent(name)}`));
+  }
+
+  /** Read the channel's public variables. */
+  variables(username) {
+    return this._request('GET', this._streamer(username, 'variables'));
+  }
+
+  /** Replace a variable with { value }, or atomically add { increment }. */
+  putVariable(username, key, change) {
+    return this._request('PUT', this._streamer(username, `variables/${encodeURIComponent(key)}`), { body: change });
+  }
+
+  /** Remove a channel variable. */
+  deleteVariable(username, key) {
+    return this._request('DELETE', this._streamer(username, `variables/${encodeURIComponent(key)}`));
+  }
+
+  /** Deliver { name, data } to the streamer's open custom widgets. */
+  widgetEvent(username, event) {
+    return this._request('POST', this._streamer(username, 'widget-events'), { body: event });
+  }
+
+  /** List the channel's readable stat definitions. */
+  stats(username) { return this._request('GET', this._streamer(username, 'stats')); }
+  /** Declare or replace an app-owned stat, including earn rules and levels. */
+  putStat(username, key, definition) {
+    return this._request('PUT', this._streamer(username, `stats/${encodeURIComponent(key)}`), { body: definition });
+  }
+  /** Remove an app-owned stat. */
+  deleteStat(username, key) {
+    return this._request('DELETE', this._streamer(username, `stats/${encodeURIComponent(key)}`));
+  }
+  /** Ranked viewers for one stat. */
+  leaderboard(username, key, query = {}) {
+    return this._request('GET', this._streamer(username, `stats/${encodeURIComponent(key)}/leaderboard`), { query });
+  }
+  /** List readable item definitions. */
+  items(username) { return this._request('GET', this._streamer(username, 'items')); }
+  /** Declare or replace an app-owned item, bundle or loot crate. */
+  putItem(username, key, definition) {
+    return this._request('PUT', this._streamer(username, `items/${encodeURIComponent(key)}`), { body: definition });
+  }
+  /** Remove an app-owned item definition. */
+  deleteItem(username, key) {
+    return this._request('DELETE', this._streamer(username, `items/${encodeURIComponent(key)}`));
+  }
+  /** Ranked holders of one item. */
+  itemHolders(username, key, query = {}) {
+    return this._request('GET', this._streamer(username, `items/${encodeURIComponent(key)}/holders`), { query });
+  }
+  /** One viewer's stats, levels, ranks and inventory. */
+  viewer(username, platform, viewerId) {
+    return this._request('GET', this._streamer(username, `viewers/${encodeURIComponent(platform)}/${encodeURIComponent(viewerId)}`));
+  }
+  /** Apply up to 100 stat, item or craft operations atomically. Reuse the key on retries. */
+  transaction(username, operations, idempotencyKey) {
+    return this._request('POST', this._streamer(username, 'transactions'), {
+      body: { operations },
+      headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : undefined,
+    });
+  }
+  /** List readable queue and raffle definitions. */
+  lists(username) { return this._request('GET', this._streamer(username, 'lists')); }
+  /** Declare an app-owned list. */
+  putList(username, key, definition) {
+    return this._request('PUT', this._streamer(username, `lists/${encodeURIComponent(key)}`), { body: definition });
+  }
+  /** Remove an app-owned list. */
+  deleteList(username, key) {
+    return this._request('DELETE', this._streamer(username, `lists/${encodeURIComponent(key)}`));
+  }
+  /** Read entries in a list. */
+  listEntries(username, key, query = {}) {
+    return this._request('GET', this._streamer(username, `lists/${encodeURIComponent(key)}/entries`), { query });
+  }
+  /** Add an entry; reuse idempotencyKey on retries. */
+  addListEntry(username, key, entry, idempotencyKey) {
+    return this._request('POST', this._streamer(username, `lists/${encodeURIComponent(key)}/entries`), {
+      body: entry, headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : undefined,
+    });
+  }
+  /** Remove one list entry by id. */
+  removeListEntry(username, key, id) {
+    return this._request('DELETE', this._streamer(username, `lists/${encodeURIComponent(key)}/entries/${encodeURIComponent(id)}`));
+  }
+  /** Pop the next count entries, up to 25. */
+  nextListEntry(username, key, count = 1) {
+    return this._request('POST', this._streamer(username, `lists/${encodeURIComponent(key)}/next`), { body: { count } });
+  }
+  /** Draw one entry, optionally leaving it in the list. */
+  drawListEntry(username, key, remove = true) {
+    return this._request('POST', this._streamer(username, `lists/${encodeURIComponent(key)}/draw`), { body: { remove } });
+  }
+  /** List readable rewards. */
+  rewards(username) { return this._request('GET', this._streamer(username, 'rewards')); }
+  /** Declare an app-owned reward. */
+  putReward(username, key, definition) {
+    return this._request('PUT', this._streamer(username, `rewards/${encodeURIComponent(key)}`), { body: definition });
+  }
+  /** Remove an app-owned reward. */
+  deleteReward(username, key) {
+    return this._request('DELETE', this._streamer(username, `rewards/${encodeURIComponent(key)}`));
+  }
+  /** Redeem a reward for a viewer; reuse idempotencyKey on retries. */
+  redeemReward(username, key, redemption, idempotencyKey) {
+    return this._request('POST', this._streamer(username, `rewards/${encodeURIComponent(key)}/redeem`), {
+      body: redemption, headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : undefined,
+    });
+  }
+  /** List reward redemptions with optional filters and cursor. */
+  redemptions(username, query = {}) {
+    return this._request('GET', this._streamer(username, 'redemptions'), { query });
+  }
+  /** Resolve one redemption. */
+  resolveRedemption(username, id, resolution) {
+    return this._request('POST', this._streamer(username, `redemptions/${encodeURIComponent(id)}`), { body: resolution });
+  }
+  /** List this app's transactions. */
+  ledger(username, query = {}) {
+    return this._request('GET', this._streamer(username, 'ledger'), { query });
+  }
+
+  _documentPath(scope, collection, key, username, platform, viewerId) {
+    const prefix = scope === 'app' ? '/app' : this._streamer(username, 'documents');
+    const owner = scope === 'app' ? '' : scope === 'viewer'
+      ? `/viewer/${encodeURIComponent(platform)}/${encodeURIComponent(viewerId)}`
+      : '/channel';
+    return `${prefix}${scope === 'app' ? '/documents' : ''}${owner}/${encodeURIComponent(collection)}${key === undefined ? '' : '/' + encodeURIComponent(key)}`;
+  }
+  /** Query documents in channel, viewer or app scope. */
+  documents(scope, collection, { username, query = {} } = {}) {
+    return this._request('GET', this._documentPath(scope, collection, undefined, username), { query });
+  }
+  /** Read one app-owned document. For viewer scope pass platform and viewerId. */
+  getDocument(scope, collection, key, { username, platform, viewerId } = {}) {
+    return this._request('GET', this._documentPath(scope, collection, key, username, platform, viewerId));
+  }
+  /** Save JSON, with ifVersion for a conditional write (0 means create only). */
+  putDocument(scope, collection, key, document, { username, platform, viewerId } = {}) {
+    return this._request('PUT', this._documentPath(scope, collection, key, username, platform, viewerId), { body: document });
+  }
+  /** Atomically set, increment or unset top-level fields. */
+  patchDocument(scope, collection, key, change, { username, platform, viewerId } = {}) {
+    return this._request('PATCH', this._documentPath(scope, collection, key, username, platform, viewerId), { body: change });
+  }
+  /** Remove an app-owned document. */
+  deleteDocument(scope, collection, key, { username, platform, viewerId } = {}) {
+    return this._request('DELETE', this._documentPath(scope, collection, key, username, platform, viewerId));
   }
 
   /**
