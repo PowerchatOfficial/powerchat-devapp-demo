@@ -9,6 +9,11 @@
  *   2. `messageId` is a REQUIRED idempotency key — send the same one twice and
  *      the duplicate is dropped instead of double-posting.
  *
+ * History stores your message under an APP-SCOPED id, `app:<appId>:<messageId>`
+ * (appId comes from GET /me), with its words in `text`. Match that exact id:
+ * matching on the bare messageId finds nothing, and matching on the words can
+ * find someone else's identical line.
+ *
  * Scopes required: chat:write (to send) and chat:read (to read the proof back)
  *
  * Run:  node examples/03-send-chat.js ["your message"]
@@ -30,11 +35,13 @@ async function main() {
     accessToken: config.accessToken,
   });
   const streamer = config.streamer;
+  const { appId } = await client.me();
 
   // The idempotency key. It must be stable for a given logical message and
   // unique across different ones — your own platform's message id is ideal.
   // A random UUID is right here only because this demo has no upstream id.
   const messageId = `demo-${randomUUID()}`;
+  const historyId = `app:${appId}:${messageId}`; // how chat/history stores it
   const text = process.argv[2] || `Hello from the PowerChat demo at ${new Date().toISOString()}`;
 
   const message = {
@@ -65,7 +72,7 @@ async function main() {
   for (let attempt = 1; attempt <= 4 && !found; attempt += 1) {
     await sleep(1000); // give the pipeline a moment; it is not synchronous
     const history = asList(await client.chatHistory(streamer, { limit: 50 }));
-    found = history.find((m) => m.messageId === messageId || m.message === text) ?? null;
+    found = history.find((m) => m.messageId === historyId) ?? null;
     console.log(`  attempt ${attempt}: ${found ? 'found it' : 'not in history yet'}`);
   }
 
@@ -94,13 +101,18 @@ async function main() {
   console.log(`API answered 202 ${JSON.stringify(again)} — same shape, no second message.`);
 
   const after = asList(await client.chatHistory(streamer, { limit: 50 }));
-  const copies = after.filter((m) => m.messageId === messageId || m.message === text).length;
-  console.log(`\nCopies of that message now in history: ${copies}`);
-  console.log(
-    copies <= 1
-      ? 'Deduped, as designed. Reuse the messageId on every retry; a fresh one posts twice.'
-      : 'More than one copy — check that messageId is really being reused verbatim.',
-  );
+  const copies = after.filter((m) => m.messageId === historyId).length;
+  console.log(`\nCopies of ${historyId} now in history: ${copies}`);
+  if (copies === 1) {
+    console.log('Deduped, as designed. Reuse the messageId on every retry; a fresh one posts twice.');
+  } else if (copies === 0) {
+    // Zero copies proves nothing about dedupe: the first send was never shown.
+    console.log('No copy in history, so this run cannot show dedupe (see the moderation note above).');
+    process.exitCode = 1;
+  } else {
+    console.log('More than one copy — check that messageId is really being reused verbatim.');
+    process.exitCode = 1;
+  }
 }
 
 function reportError(err) {
